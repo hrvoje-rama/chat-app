@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Chat app example</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <style>
+        body{ margin:0; font:normal 75% Arial, Helvetica, sans-serif; } canvas{ display: block; vertical-align: bottom; } #particles-js{ position:absolute; width: 100%; height: 100%; background-color: #b61924; background-image: url(""); background-repeat: no-repeat; background-size: cover; background-position: 50% 50%; }
+        .btn-info{
+    color: #fff;
+    background-color: #bb3d3d;
+    border-color: #960e1b;}
+    .bg-info {
+    background-color: #bb3d3d!important;
+    border-color: #960e1b;
+}
+    </style>
+</head>
+<body>
+    <div id="particles-js"></div>
+    <script src="http://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script><script src="http://threejs.org/examples/js/libs/stats.min.js"></script>
+    <div class="container" id="app">
+        <div class="col-md-4 col-lg-6 offset-lg-3 offset-md-4">
+            <div v-if="ready">
+                <h4>{{name}}</h4>
+                <p v-for="item in info">
+                    <small>{{item.name}} {{item.type}}</small>
+                </p>
+            </div>
+            <form @submit.prevent="setName" class="mt-6" v-else>
+                <div class="form-group row">
+                    <label>Set Your Name First</label>
+                    <input type="text" class="form-control col-9" v-model="name" placeholder="Type Here">
+                    <input type="submit" value="Add" class="btn btn-sm btn-info ml-1 col-2">
+                </div>
+            </form>
+            <div class="card bg-info" v-if="ready">
+                <div class="card-header text-white">
+                    Welcome to Chat App example
+                    <span class="float-right">{{connectionCount}} connections, {{online.length}} Online</span>
+                </div>
+
+                <ul class="list-group list-group-flush text-right">
+                    <small v-if="typing" class="text-white mt-2">
+                        <i>{{typing}} is typing</i>
+                    </small>
+                    <li class="list-group-item" v-for="message in messages">
+                        <span :class="{'float-left':(message.type===1)}">
+                            <small>{{message.by}}:</small>
+                            {{message.message}}
+                        </span>
+                    </li>
+                </ul>
+
+                <div class="card-body">
+                    <form @submit.prevent="send">
+                        <div class="form-group">
+                            <input type="text" class="form-control" v-model="newmessage" placeholder="Type Here">
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+    <script>
+        var socket = io();
+        let app = new Vue({
+            el: '#app',
+            data: {
+                newmessage: null,
+                messages: [],
+                typing: false,
+                online: [],
+                name: null,
+                ready: false,
+                info: [],
+                connectionCount: 0
+            },
+            methods: {
+                send() {
+                    socket.emit('chat-message', { message: this.newmessage, user: this.name })
+                    this.messages.push({ message: this.newmessage, type: 0, by: 'Me' })
+                    this.newmessage = null
+                },
+                isTyping() {
+                    socket.emit('typing', this.name)
+                },
+                setName() {
+                    socket.emit('joined', this.name)
+                    this.ready = true
+                }
+            },
+            mounted() {
+                window.onbeforeunload = () => {
+                    socket.emit('leaved', this.name)
+                }
+                socket.on('noOfConnections', (count) => {
+                    this.connectionCount = count
+                })
+            },
+            watch: {
+                newmessage(value) {
+                    value ? socket.emit('typing', this.name) : socket.emit('stoptyping')
+                }
+            },
+            created() {
+                socket.on('chat-message', (data) => {
+                    this.messages.push({ message: data.message, type: 1, by: data.user })
+                    this.typing = false
+                })
+
+                socket.on('typing', (data) => {
+                    console.log(data)
+                    this.typing = data
+                })
+                socket.on('stoptyping', () => {
+                    this.typing = false
+                })
+
+                socket.on('leaved', (name) => {
+                    this.online.splice(this.online.indexOf(name))
+                    this.info.push({ name: name, type: 'Leaved' })
+                    setTimeout(() => {
+                        this.info = []
+                    }, 5000);
+                })
+
+                socket.on('joined', (name) => {
+                    this.online.push(name)
+                    this.info.push({ name: name, type: 'Joined' })
+                    setTimeout(() => {
+                        this.info = []
+                    }, 5000);
+                })
+            }
+        });
+    </script>
+    <script>
+    particlesJS("particles-js", {"particles":{"number":{"value":80,"density":{"enable":true,"value_area":800}},"color":{"value":"#ffffff"},"shape":{"type":"circle","stroke":{"width":0,"color":"#000000"},"polygon":{"nb_sides":5},"image":{"src":"img/github.svg","width":100,"height":100}},"opacity":{"value":0.5,"random":false,"anim":{"enable":false,"speed":1,"opacity_min":0.1,"sync":false}},"size":{"value":3,"random":true,"anim":{"enable":false,"speed":40,"size_min":0.1,"sync":false}},"line_linked":{"enable":true,"distance":200,"color":"#ffffff","opacity":0.4,"width":1},"move":{"enable":true,"speed":6,"direction":"none","random":false,"straight":false,"out_mode":"out","bounce":false,"attract":{"enable":false,"rotateX":600,"rotateY":1200}}},"interactivity":{"detect_on":"canvas","events":{"onhover":{"enable":true,"mode":"repulse"},"onclick":{"enable":true,"mode":"push"},"resize":true},"modes":{"grab":{"distance":400,"line_linked":{"opacity":1}},"bubble":{"distance":400,"size":40,"duration":2,"opacity":8,"speed":3},"repulse":{"distance":80,"duration":0.4},"push":{"particles_nb":4},"remove":{"particles_nb":2}}},"retina_detect":true});</script>
+
+</html>
